@@ -13,30 +13,35 @@ import java.util.logging.Logger;
 
 public class BookSearchDBContext extends DBContext<Book> {
 
-    public ArrayList<Book> search(String bookName, Boolean availability, String publishedFrom, String publishedTo, String[] authorIds) {
+    public ArrayList<Book> search(String bookName, String available, String publishedFrom, String publishedTo, String[] authorIds) {
         ArrayList<Book> books = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT b.BookID, b.BookName, b.CreatedBy, b.CreatedDate, b.Availability " +
-                                              "FROM [Test2DB].[dbo].[Book] b ");
+        StringBuilder sql = new StringBuilder("SELECT DISTINCT b.BookID, b.BookName, b.Createdby, b.CreatedAt, b.Availability " +
+                                              "FROM [Test2DB].[dbo].[Book] b " +
+                                              "LEFT JOIN [Test2DB].[dbo].[User] u ON b.Createdby = u.UserID " +
+                                              "LEFT JOIN [Test2DB].[dbo].[Book_Author] ba ON b.BookID = ba.BookID " +
+                                              "LEFT JOIN [Test2DB].[dbo].[Author] a ON ba.AuthorID = a.AuthorID ");
         
-        // Join with Book_Author only if authors are specified
-        if (authorIds != null && authorIds.length > 0) {
-            sql.append("INNER JOIN [Test2DB].[dbo].[Book_Author] ba ON b.BookID = ba.BookID ");
-        }
-        
-        // Build WHERE clause dynamically
         ArrayList<String> conditions = new ArrayList<>();
+
+        // Tìm kiếm theo tên sách
         if (bookName != null && !bookName.trim().isEmpty()) {
             conditions.add("b.BookName LIKE ?");
         }
-        if (availability != null) {
+
+        // Tìm kiếm theo trạng thái Availability
+        if (available != null && !"all".equalsIgnoreCase(available)) {
             conditions.add("b.Availability = ?");
         }
+
+        // Tìm kiếm theo khoảng thời gian xuất bản
         if (publishedFrom != null && !publishedFrom.trim().isEmpty()) {
-            conditions.add("b.CreatedDate >= ?");
+            conditions.add("b.CreatedAt >= ?");
         }
         if (publishedTo != null && !publishedTo.trim().isEmpty()) {
-            conditions.add("b.CreatedDate <= ?");
+            conditions.add("b.CreatedAt <= ?");
         }
+
+        // Tìm kiếm theo tác giả
         if (authorIds != null && authorIds.length > 0) {
             String placeholders = String.join(",", new String[authorIds.length]).replace("\0", "?");
             conditions.add("ba.AuthorID IN (" + placeholders + ")");
@@ -48,13 +53,12 @@ public class BookSearchDBContext extends DBContext<Book> {
 
         try (PreparedStatement stm = connection.prepareStatement(sql.toString())) {
             int paramIndex = 1;
-            
-            // Set parameters only for non-empty conditions
+
             if (bookName != null && !bookName.trim().isEmpty()) {
                 stm.setString(paramIndex++, "%" + bookName.trim() + "%");
             }
-            if (availability != null) {
-                stm.setBoolean(paramIndex++, availability);
+            if (available != null && !"all".equalsIgnoreCase(available)) {
+                stm.setBoolean(paramIndex++, "true".equalsIgnoreCase(available));
             }
             if (publishedFrom != null && !publishedFrom.trim().isEmpty()) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
@@ -72,14 +76,13 @@ public class BookSearchDBContext extends DBContext<Book> {
                 }
             }
 
-            // Execute query
             ResultSet rs = stm.executeQuery();
             while (rs.next()) {
                 Book book = new Book();
                 book.setBookID(rs.getInt("BookID"));
                 book.setBookName(rs.getString("BookName"));
-                book.setCreatedby(rs.getInt("CreatedBy"));
-                book.setCreatedAt(rs.getDate("CreatedDate"));
+                book.setCreatedby(rs.getInt("Createdby"));
+                book.setCreatedAt(rs.getDate("CreatedAt"));
                 book.setAvailability(rs.getBoolean("Availability"));
                 books.add(book);
             }

@@ -1,8 +1,6 @@
 package controller;
 
-import dal.AuthorDBContext;
 import dal.BookSearchDBContext;
-import data.Author;
 import data.Book;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -12,54 +10,36 @@ import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class BookSearchController extends HttpServlet {
+public class BookSearchController extends BaseRequiredAuthenticationController {
 
     @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+    protected void doGet(HttpServletRequest request, HttpServletResponse response, data.User user)
             throws ServletException, IOException {
-         AuthorDBContext db = new AuthorDBContext();
-        ArrayList<Author> authors = db.list();
-
+        dal.AuthorDBContext authorDB = new dal.AuthorDBContext();
+        ArrayList<data.Author> authors = authorDB.list();
         HttpSession session = request.getSession();
         session.setAttribute("authors", authors);
         request.getRequestDispatcher("/view/search.jsp").forward(request, response);
     }
 
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+    protected void doPost(HttpServletRequest request, HttpServletResponse response, data.User user)
             throws ServletException, IOException {
-        // Extract form parameters (all can be null or empty)
-        String bookName = request.getParameter("bookName"); // Can be null or ""
-        String available = request.getParameter("available"); // "true", "false", or "all"
-        String publishedFrom = request.getParameter("publishedFrom"); // Can be null or ""
-        String publishedTo = request.getParameter("publishedTo"); // Can be null or ""
-        String[] authorIds = request.getParameterValues("authors"); // Can be null if no checkboxes selected
+        String bookName = request.getParameter("bookName");
+        String available = request.getParameter("available"); // "true", "false", hoặc "all"
+        String publishedFrom = request.getParameter("publishedFrom");
+        String publishedTo = request.getParameter("publishedTo");
+        String[] authorIds = request.getParameterValues("authors");
 
-        // Handle availability
-        Boolean availability = null;
-        if ("true".equals(available)) {
-            availability = true;
-        } else if ("false".equals(available)) {
-            availability = false;
-        } // "all" or null means no filter
-
-        // Query the database with potentially null/empty values
         BookSearchDBContext db = new BookSearchDBContext();
-        ArrayList<Book> books = db.search(
-            bookName != null ? bookName : "",
-            availability,
-            publishedFrom != null ? publishedFrom : "",
-            publishedTo != null ? publishedTo : "",
-            authorIds
-        );
+        ArrayList<Book> books = db.search(bookName, available, publishedFrom, publishedTo, authorIds);
 
-        // Set results and forward
         request.setAttribute("books", books);
         request.getRequestDispatcher("/view/searchresult.jsp").forward(request, response);
     }
 
     @Override
     public String getServletInfo() {
-        return "Handles book search requests with optional fields";
+        return "Handles book search for authorized users";
     }
 }
